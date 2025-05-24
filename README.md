@@ -45,7 +45,7 @@ Ensure you have the following installed:
 
 1️⃣ **Clone the Repository**
 ```bash
- git clone https://github.com/your-username/MedicalAppointmentSystemAPI.git
+ git clone https://github.com/MahmoudElmenofy/Medical-Appointment-System-API.git
  cd MedicalAppointmentSystemAPI
 ```
 
