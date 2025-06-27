@@ -1,82 +1,158 @@
 package com.dev.MedicalAppointmentSystemAPI.controller;
 
-import com.dev.MedicalAppointmentSystemAPI.entity.Appointment;
+import com.dev.MedicalAppointmentSystemAPI.model.Appointment;
+import com.dev.MedicalAppointmentSystemAPI.model.AppointmentStatus;
 import com.dev.MedicalAppointmentSystemAPI.service.AppointmentService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
-@RequestMapping("/appointments")
+@RequestMapping("/api/appointments")
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class AppointmentController {
 
-	@Autowired
-	private AppointmentService appointmentService;
+	private static final Logger logger = LoggerFactory.getLogger(AppointmentController.class);
 
-	// Create a new appointment
-	@PostMapping ("/createappointment")
-	public String createAppointment(@RequestBody Appointment appointment) {
-		return appointmentService.createAppointment(appointment);
+	private final AppointmentService appointmentService;
+
+	public AppointmentController(AppointmentService appointmentService) {
+		this.appointmentService = appointmentService;
 	}
 
-	// Update an appointment with new doctor name and status
-	@PutMapping("/updateappointment")
-	public String updateDoctorAndStatus(@RequestParam Long id, @RequestParam String doctorName,
-			@RequestParam boolean status) {
-		return appointmentService.updateDoctorAndStatus(id, doctorName, status);
+	@GetMapping
+	@PreAuthorize("hasRole('ADMIN')")
+	public ResponseEntity<List<Appointment>> getAllAppointments() {
+		logger.info("Fetching all appointments");
+		List<Appointment> appointments = appointmentService.getAllAppointments();
+		return new ResponseEntity<>(appointments, HttpStatus.OK);
 	}
 
-	// Delete an appointment by ID
-	@DeleteMapping("/delbyid")
-	public String deleteAppointmentById(@RequestParam Long id) {
-		appointmentService.deleteAppointmentById(id);
-		return "Appointment with ID " + id + " has been deleted.";
+	@GetMapping("/{id}")
+	@PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
+	public ResponseEntity<Appointment> getAppointmentById(@PathVariable Long id) {
+		logger.info("Fetching appointment with ID: {}", id);
+		return appointmentService.getAppointmentById(id)
+				.map(appointment -> new ResponseEntity<>(appointment, HttpStatus.OK))
+				.orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
 	}
 
-	// Delete appointments whose status is cancelled
-	@DeleteMapping("/bystatus")
-	public String deleteCancelledAppointments() {
-		appointmentService.deleteCancelledAppointments();
-		return "All cancelled appointments have been deleted.";
+	@GetMapping("/patient/{patientId}")
+	@PreAuthorize("hasAnyRole('PATIENT', 'ADMIN') or (hasRole('DOCTOR') and @appointmentSecurity.isPatientAssignedToDoctor(#patientId, principal))")
+	public ResponseEntity<List<Appointment>> getAppointmentsByPatientId(@PathVariable Long patientId) {
+		logger.info("Fetching appointments for patient ID: {}", patientId);
+		List<Appointment> appointments = appointmentService.getAppointmentsByPatientId(patientId);
+		return new ResponseEntity<>(appointments, HttpStatus.OK);
 	}
 
-	// Get an appointment by ID
-	@GetMapping("/byid")
-	public Optional<Appointment> getAppointmentById(@RequestParam Long id) {
-		return appointmentService.getAppointmentById(id);
+	@GetMapping("/doctor/{doctorId}")
+	@PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN') or (hasRole('PATIENT') and @appointmentSecurity.isDoctorAssignedToPatient(#doctorId, principal))")
+	public ResponseEntity<List<Appointment>> getAppointmentsByDoctorId(@PathVariable Long doctorId) {
+		logger.info("Fetching appointments for doctor ID: {}", doctorId);
+		List<Appointment> appointments = appointmentService.getAppointmentsByDoctorId(doctorId);
+		return new ResponseEntity<>(appointments, HttpStatus.OK);
 	}
 
-	// Get appointments by doctor name
-	@GetMapping("/docbyname")
-	public List<Appointment> getAppointmentsByDoctorName(@RequestParam String doctorName) {
-		return appointmentService.getAppointmentsByDoctorName(doctorName);
+	@GetMapping("/status/{status}")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ResponseEntity<List<Appointment>> getAppointmentsByStatus(@PathVariable AppointmentStatus status) {
+		logger.info("Fetching appointments with status: {}", status);
+		List<Appointment> appointments = appointmentService.getAppointmentsByStatus(status);
+		return new ResponseEntity<>(appointments, HttpStatus.OK);
 	}
 
-	// Get appointments by doctor name and date
-	@GetMapping("/docbynameAndDate")
-	public List<Appointment> getAppointmentsByDoctorNameAndDate(@RequestParam String doctorName,
-			@RequestParam String date) {
-		return appointmentService.findByDoctorNameAndAppointmentDate(doctorName, date);
+	@GetMapping("/doctor/{doctorId}/date-range")
+	@PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+	public ResponseEntity<List<Appointment>> getAppointmentsByDoctorAndDateRange(
+			@PathVariable Long doctorId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+		logger.info("Fetching appointments for doctor ID: {} between {} and {}", doctorId, startDate, endDate);
+		List<Appointment> appointments = appointmentService.getAppointmentsByDoctorAndDateRange(doctorId, startDate, endDate);
+		return new ResponseEntity<>(appointments, HttpStatus.OK);
 	}
 
-	// Get confirmed appointments
-	@GetMapping("/getbystatus")
-	public List<Appointment> getConfirmedAppointments() {
-		return appointmentService.getConfirmedAppointments();
+	@GetMapping("/patient/{patientId}/date-range")
+	@PreAuthorize("hasAnyRole('PATIENT', 'ADMIN')")
+	public ResponseEntity<List<Appointment>> getAppointmentsByPatientAndDateRange(
+			@PathVariable Long patientId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+		logger.info("Fetching appointments for patient ID: {} between {} and {}", patientId, startDate, endDate);
+		List<Appointment> appointments = appointmentService.getAppointmentsByPatientAndDateRange(patientId, startDate, endDate);
+		return new ResponseEntity<>(appointments, HttpStatus.OK);
 	}
 
-	// Get appointments by date
-	@GetMapping("/getbydate")
-	public List<Appointment> getAppointmentsByDate(@RequestParam String date) {
-		return appointmentService.getAppointmentsByDate(date);
+	@PostMapping
+	@PreAuthorize("hasAnyRole('PATIENT', 'ADMIN')")
+	public ResponseEntity<Appointment> createAppointment(
+			@RequestParam Long patientId,
+			@RequestParam Long doctorId,
+			@Valid @RequestBody Appointment appointment) {
+		logger.info("Creating appointment for patient ID: {} and doctor ID: {}", patientId, doctorId);
+		Appointment newAppointment = appointmentService.createAppointment(patientId, doctorId, appointment);
+		return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
 	}
 
-	// Update patient name and appointment date based on ID
-	@PutMapping("/updatebyid")
-	public String updatePatientAndDate(@RequestParam Long id, @RequestParam String patientName,
-			@RequestParam String appointmentDate) {
-		return appointmentService.updatePatientAndDate(id, patientName, appointmentDate);
+	@PutMapping("/{id}")
+	@PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN') or (hasRole('PATIENT') and @appointmentSecurity.isAppointmentOwner(#id, principal))")
+	public ResponseEntity<Appointment> updateAppointment(@PathVariable Long id, @Valid @RequestBody Appointment appointmentDetails) {
+		logger.info("Updating appointment with ID: {}", id);
+		Appointment updatedAppointment = appointmentService.updateAppointment(id, appointmentDetails);
+		return new ResponseEntity<>(updatedAppointment, HttpStatus.OK);
+	}
+
+	@DeleteMapping("/{id}")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ResponseEntity<Void> deleteAppointment(@PathVariable Long id) {
+		logger.info("Deleting appointment with ID: {}", id);
+		appointmentService.deleteAppointment(id);
+		return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+	}
+
+	@PatchMapping("/{id}/cancel")
+	@PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
+	public ResponseEntity<Appointment> cancelAppointment(@PathVariable Long id) {
+		logger.info("Cancelling appointment with ID: {}", id);
+		Appointment cancelledAppointment = appointmentService.updateAppointmentStatus(id, AppointmentStatus.CANCELLED);
+		return new ResponseEntity<>(cancelledAppointment, HttpStatus.OK);
+	}
+
+	@PatchMapping("/{id}/confirm")
+	@PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+	public ResponseEntity<Appointment> confirmAppointment(@PathVariable Long id) {
+		logger.info("Confirming appointment with ID: {}", id);
+		Appointment confirmedAppointment = appointmentService.updateAppointmentStatus(id, AppointmentStatus.CONFIRMED);
+		return new ResponseEntity<>(confirmedAppointment, HttpStatus.OK);
+	}
+
+	@PatchMapping("/{id}/complete")
+	@PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+	public ResponseEntity<Appointment> completeAppointment(@PathVariable Long id) {
+		logger.info("Completing appointment with ID: {}", id);
+		Appointment completedAppointment = appointmentService.updateAppointmentStatus(id, AppointmentStatus.COMPLETED);
+		return new ResponseEntity<>(completedAppointment, HttpStatus.OK);
+	}
+
+	// Exception handler for ResourceNotFoundException
+	@ExceptionHandler(AppointmentService.ResourceNotFoundException.class)
+	public ResponseEntity<String> handleResourceNotFound(AppointmentService.ResourceNotFoundException ex) {
+		logger.error("Resource not found: {}", ex.getMessage());
+		return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_FOUND);
+	}
+
+	// Exception handler for IllegalArgumentException
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<String> handleIllegalArgument(IllegalArgumentException ex) {
+		logger.error("Invalid argument: {}", ex.getMessage());
+		return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 	}
 }

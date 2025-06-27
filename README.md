@@ -45,7 +45,7 @@ Ensure you have the following installed:
 
 1️⃣ **Clone the Repository**
 ```bash
- git clone https://github.com/your-username/MedicalAppointmentSystemAPI.git
+ git clone https://github.com/MahmoudElmenofy/Medical-Appointment-System-API.git
  cd MedicalAppointmentSystemAPI
 ```
 
@@ -99,18 +99,3 @@ mvn spring-boot:run
 3. **Commit Your Changes** (`git commit -m 'Add new feature'`)
 4. **Push to Branch** (`git push origin feature-name`)
 5. **Create a Pull Request**
-
----
-
-## 📜 License
-This project is **MIT Licensed** – feel free to modify and use it as needed.
-
----
-
-## 📬 Contact
-For any queries or collaboration, feel free to reach out:
-📧 Email: vallamgurubabu@gmail.com 
-🔗 LinkedIn: https://www.linkedin.com/public-profile/settings?trk=d_flagship3_profile_self_view_public_profile
----
-
-### 🎯 Happy Coding! 🚀
